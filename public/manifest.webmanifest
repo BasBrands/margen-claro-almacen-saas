@@ -1,0 +1,25 @@
+{
+  "name": "Margen Claro Almacén",
+  "short_name": "MCA App",
+  "description": "Aplicación comercial para controlar costos, márgenes, PVP y brechas de utilidad desde Excel.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#7c2d12",
+  "orientation": "portrait-primary",
+  "lang": "es-CL",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
