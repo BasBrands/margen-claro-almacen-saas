@@ -384,8 +384,8 @@ function LoginView({ backendMode, onSubmit }) {
           <img src="/logo-mca-v2.png" alt="Margen Claro Almacén" className="login-logo" />
           <div>
             <div className="login-kicker">Margen Claro Almacén</div>
-            <h1>SaaS Fase 4 Starter</h1>
-            <p>Login, clientes, historial, nube simulada y conexión real opcional con Supabase.</p>
+            <h1>Sistema MCA · SaaS Operativo</h1>
+            <p>Acceso seguro a clientes, análisis, historial y gestión comercial en la nube con Supabase.</p>
           </div>
           <div className="hero-badges">
             <span className="mini-badge"><Users size={14} /> Usuarios</span>
