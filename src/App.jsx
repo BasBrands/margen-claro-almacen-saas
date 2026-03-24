@@ -797,7 +797,7 @@ async function handleCreateClient() {
               <div className="hero-badges">
                 <span className="mini-badge"><Smartphone size={13} /> Móvil</span>
                 <span className="mini-badge"><Monitor size={13} /> Escritorio</span>
-                <span className="mini-badge"><ShieldCheck size={13} /> SaaS Starter</span>
+                <span className="mini-badge"><ShieldCheck size={13} /> SaaS Operativo</span>
                 <span className="mini-badge"><AppWindowMac size={13} /> PWA</span>
                 <span className="mini-badge">{online ? <><Wifi size={13} /> En línea</> : <><WifiOff size={13} /> Offline</>}</span>
               </div>
@@ -845,7 +845,7 @@ async function handleCreateClient() {
             <div className="top-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-primary" onClick={() => exportWorkbook(params, calculatedProducts)}><Download size={16} /> Exportar Excel</button>
               <button className="btn btn-secondary" onClick={() => openPrintReport({ companyName: workspace.company?.name || 'MCA', clientName: selectedClient?.name, summary, opportunities })}><Printer size={16} /> Reporte PDF</button>
-              <button className="btn btn-secondary" onClick={handleLogout}><LogOut size={16} /> Salir</button>
+              <button className="btn btn-secondary" onClick={handleLogout}><LogOut size={16} /> Cerrar sesión</button>
             </div>
             <div className="status-list">
               <div>1. Crea clientes para separar análisis.</div>
