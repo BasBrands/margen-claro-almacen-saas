@@ -436,6 +436,7 @@ export default function App() {
   const [analysisName, setAnalysisName] = useState('Análisis General MCA');
   const [newClientName, setNewClientName] = useState('');
   const [message, setMessage] = useState('Base SaaS cargada.');
+  const [saveNotice, setSaveNotice] = useState('');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('productos');
 
@@ -558,7 +559,6 @@ export default function App() {
       setSession({ userId: user.id, companyId: profile.company_id, backendMode: 'supabase' });
       setWorkspace({ user: { id: user.id, full_name: profile.full_name || user.email, email: user.email, role: profile.role }, company, clients: clients || [], analyses: analyses || [] });
       if (!clientId && clients?.[0]) setClientId(clients[0].id);
-      setMessage('Sesión Supabase activa.');
     } catch (error) {
       setMessage(error.message || 'No se pudo hidratar la cuenta desde Supabase.');
     }
@@ -577,6 +577,7 @@ export default function App() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (data.user) await hydrateWorkspaceFromSupabase(data.user);
+      setMessage('Sesión iniciada correctamente.');
       return { ok: true };
     } catch (error) {
       return { ok: false, message: error.message || 'No se pudo iniciar sesión.' };
@@ -705,7 +706,8 @@ async function handleCreateClient() {
         ...prev.analyses,
       ],
     }));
-    setMessage(`Análisis guardado para ${selectedClient.name}.`);
+    setSaveNotice('Guardado correctamente en la nube.');
+setTimeout(() => setSaveNotice(''), 3000);
     return;
   }
 
@@ -727,7 +729,8 @@ async function handleCreateClient() {
       email: workspace.user?.email,
     });
 
-    setMessage('Guardado correctamente en la nube.');
+    setSaveNotice('Guardado correctamente en la nube.');
+setTimeout(() => setSaveNotice(''), 3000);
   } catch (error) {
     console.error('ANALYSIS_INSERT_ERROR', error);
     setMessage(error.message || 'No se pudo guardar el análisis.');
@@ -855,6 +858,12 @@ async function handleCreateClient() {
       <CheckCircle2 size={16} />
     )}
     <span>{message}</span>
+  </div>
+) : null}
+            {saveNotice ? (
+  <div className="status-message-box success">
+    <CheckCircle2 size={16} />
+    <span>{saveNotice}</span>
   </div>
 ) : null}
             <div className="top-actions" style={{ marginTop: 16 }}>
