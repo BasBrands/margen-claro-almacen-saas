@@ -413,7 +413,7 @@ function LoginView({ backendMode, onSubmit }) {
             </div>
           ) : (
             <div className="info-box">
-              Configura <code>.env</code> y ejecuta el script de <code>supabase/schema.sql</code> antes de usarlo en serio.
+              Accede con tu usuario autorizado para gestionar clientes, análisis y reportes en la nube.
             </div>
           )}
         </div>
