@@ -237,3 +237,25 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .top-actions, .status-actions { flex-direction: column; }
   .login-panel, .login-hero { padding: 24px; }
 }
+.status-message-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.status-message-box.success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.status-message-box.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}

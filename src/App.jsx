@@ -727,7 +727,7 @@ async function handleCreateClient() {
       email: workspace.user?.email,
     });
 
-    setMessage(`Análisis guardado en nube para ${selectedClient.name}.`);
+    setMessage('Guardado correctamente en la nube.');
   } catch (error) {
     console.error('ANALYSIS_INSERT_ERROR', error);
     setMessage(error.message || 'No se pudo guardar el análisis.');
@@ -841,7 +841,22 @@ async function handleCreateClient() {
                 </div>
               </div>
             </div>
-            <div className="status-message">{message}</div>
+            {message ? (
+  <div
+    className={`status-message-box ${
+      message.toLowerCase().includes('no se pudo') || message.toLowerCase().includes('error')
+        ? 'error'
+        : 'success'
+    }`}
+  >
+    {message.toLowerCase().includes('no se pudo') || message.toLowerCase().includes('error') ? (
+      <AlertTriangle size={16} />
+    ) : (
+      <CheckCircle2 size={16} />
+    )}
+    <span>{message}</span>
+  </div>
+) : null}
             <div className="top-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-primary" onClick={() => exportWorkbook(params, calculatedProducts)}><Download size={16} /> Exportar Excel</button>
               <button className="btn btn-secondary" onClick={() => openPrintReport({ companyName: workspace.company?.name || 'MCA', clientName: selectedClient?.name, summary, opportunities })}><Printer size={16} /> Reporte PDF</button>
