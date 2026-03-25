@@ -440,6 +440,29 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('productos');
 
+  const [clientAdminList, setClientAdminList] = useState([]);
+  const [showArchivedClients, setShowArchivedClients] = useState(false);
+  const [clientAdminMessage, setClientAdminMessage] = useState('');
+  const saveNoticeTimerRef = useRef(null);
+
+function showSaveNotice(text = 'Guardado correctamente en la nube.') {
+  if (saveNoticeTimerRef.current) {
+    clearTimeout(saveNoticeTimerRef.current);
+  }
+
+  setSaveNotice(text);
+
+  saveNoticeTimerRef.current = setTimeout(() => {
+    setSaveNotice('');
+  }, 3000);
+}
+  useEffect(() => {
+  return () => {
+    if (saveNoticeTimerRef.current) {
+      clearTimeout(saveNoticeTimerRef.current);
+    }
+  };
+}, []);
   useEffect(() => {
     try {
       const savedApp = localStorage.getItem(APP_STATE_KEY);
@@ -514,20 +537,35 @@ export default function App() {
   }, [backendMode]);
 
   useEffect(() => {
-    if (backendMode === 'demo' && session) {
-      const user = demoDb.users.find((item) => item.id === session.userId) || null;
-      const company = demoDb.companies.find((item) => item.id === user?.company_id) || null;
-      const clients = demoDb.clients.filter((item) => item.company_id === company?.id);
-      const analyses = demoDb.analyses.filter((item) => item.company_id === company?.id).sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
-      setWorkspace({ user, company, clients, analyses });
-      if (!clientId && clients[0]) setClientId(clients[0].id);
-    }
-    if (backendMode === 'demo' && !session) {
-      setWorkspace({ company: null, user: null, clients: [], analyses: [] });
-    }
-  }, [backendMode, demoDb, session, clientId]);
+  if (backendMode === 'demo' && session) {
+    const user = demoDb.users.find((item) => item.id === session.userId) || null;
+    const company = demoDb.companies.find((item) => item.id === user?.company_id) || null;
+    const clients = demoDb.clients.filter((item) => item.company_id === company?.id);
+    const analyses = demoDb.analyses
+      .filter((item) => item.company_id === company?.id)
+      .sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
+    setWorkspace({ user, company, clients, analyses });
+    if (!clientId && clients[0]) setClientId(clients[0].id);
+  }
+  if (backendMode === 'demo' && !session) {
+    setWorkspace({ company: null, user: null, clients: [], analyses: [] });
+  }
+}, [backendMode, demoDb, session, clientId]);
 
-  const selectedClient = useMemo(() => workspace.clients.find((item) => item.id === clientId) || workspace.clients[0] || null, [workspace.clients, clientId]);
+useEffect(() => {
+  if (backendMode !== 'supabase') return;
+  if (!session?.companyId) return;
+
+  refreshClientAdminList(session.companyId, showArchivedClients).catch((error) => {
+    console.error('REFRESH_CLIENT_ADMIN_LIST_ERROR', error);
+    setClientAdminMessage('No se pudo refrescar la lista de clientes.');
+  });
+}, [showArchivedClients, backendMode, session?.companyId]);
+
+const selectedClient = useMemo(
+  () => workspace.clients.find((item) => item.id === clientId) || workspace.clients[0] || null,
+  [workspace.clients, clientId]
+);
   const calculatedProducts = useMemo(() => products.map((p) => calculateProduct(p, params)), [products, params]);
   const summary = useMemo(() => buildSummary(calculatedProducts), [calculatedProducts]);
   const categorySummary = useMemo(() => groupByCategory(calculatedProducts).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0)), [calculatedProducts]);
@@ -539,7 +577,44 @@ export default function App() {
   }, [calculatedProducts, search]);
 
   const categoryOptions = useMemo(() => Object.keys(params.categoryMargins), [params]);
+async function loadClientsFromSupabase(companyId, includeArchived = false) {
+  let query = supabase
+    .from('clients')
+    .select('id, name, segment, owner_name, company_id, is_archived, archived_at, created_at')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false });
 
+  if (!includeArchived) {
+    query = query.eq('is_archived', false);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  return data || [];
+}
+
+async function refreshActiveClients(companyId) {
+  const activeClients = await loadClientsFromSupabase(companyId, false);
+
+  setWorkspace((prev) => ({
+    ...prev,
+    clients: activeClients,
+  }));
+
+  if (clientId && !activeClients.some((item) => item.id === clientId)) {
+    setClientId(activeClients[0]?.id || '');
+  }
+
+  return activeClients;
+}
+
+async function refreshClientAdminList(companyId, includeArchived = showArchivedClients) {
+  const adminClients = await loadClientsFromSupabase(companyId, includeArchived);
+  setClientAdminList(adminClients);
+  return adminClients;
+}
   async function hydrateWorkspaceFromSupabase(user) {
     try {
       const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
@@ -552,12 +627,12 @@ export default function App() {
       }
       const { data: company, error: companyError } = await supabase.from('companies').select('*').eq('id', profile.company_id).single();
       if (companyError) throw companyError;
-      const { data: clients, error: clientsError } = await supabase.from('clients').select('*').eq('company_id', profile.company_id).order('created_at', { ascending: false });
-      if (clientsError) throw clientsError;
-      const { data: analyses, error: analysesError } = await supabase.from('analyses').select('*').eq('company_id', profile.company_id).order('saved_at', { ascending: false });
+      const clients = await loadClientsFromSupabase(profile.company_id, false);
+            const { data: analyses, error: analysesError } = await supabase.from('analyses').select('*').eq('company_id', profile.company_id).order('saved_at', { ascending: false });
       if (analysesError) throw analysesError;
       setSession({ userId: user.id, companyId: profile.company_id, backendMode: 'supabase' });
       setWorkspace({ user: { id: user.id, full_name: profile.full_name || user.email, email: user.email, role: profile.role }, company, clients: clients || [], analyses: analyses || [] });
+      setClientAdminList(await loadClientsFromSupabase(profile.company_id, showArchivedClients));
       if (!clientId && clients?.[0]) setClientId(clients[0].id);
     } catch (error) {
       setMessage(error.message || 'No se pudo hidratar la cuenta desde Supabase.');
@@ -626,33 +701,68 @@ export default function App() {
  
 async function handleCreateClient() {
   const clean = newClientName.trim();
-  if (!clean) return;
+
+  console.log('CREATE_CLIENT_START', {
+    clean,
+    backendMode,
+    workspaceCompanyId: workspace.company?.id,
+    session,
+  });
+
+  if (!clean) {
+    setClientAdminMessage('Debes escribir un nombre de cliente.');
+    return;
+  }
+
+  const companyId = session?.companyId || workspace.company?.id;
+
+  if (!companyId) {
+    console.error('CREATE_CLIENT_NO_COMPANY_ID', { session, workspace });
+    setClientAdminMessage('No se encontró la empresa activa.');
+    setMessage('No se encontró la empresa activa.');
+    return;
+  }
 
   if (backendMode === 'demo') {
     const record = {
       id: `client-${Date.now()}`,
-      company_id: workspace.company.id,
+      company_id: companyId,
       name: clean,
       segment: 'Cliente creado en app',
       owner_name: workspace.user?.full_name || '',
       created_at: new Date().toISOString(),
+      is_archived: false,
+      archived_at: null,
     };
+
+    console.log('CREATE_CLIENT_DEMO_RECORD', record);
+
     setDemoDb((prev) => ({ ...prev, clients: [record, ...prev.clients] }));
+
+    setWorkspace((prev) => ({
+      ...prev,
+      clients: [record, ...(prev.clients || [])],
+    }));
+
+    setClientAdminList((prev) => [record, ...prev]);
     setClientId(record.id);
     setNewClientName('');
+    setClientAdminMessage('Cliente creado correctamente.');
     setMessage(`Cliente creado: ${clean}.`);
     return;
   }
 
   try {
     const payload = {
-      company_id: workspace.company.id,
+      company_id: companyId,
       name: clean,
       segment: 'Cliente creado en app',
       owner_name: workspace.user?.full_name || '',
+      is_archived: false,
+      archived_at: null,
     };
 
-    
+    console.log('CREATE_CLIENT_BEFORE_INSERT', payload);
 
     const { data, error } = await supabase
       .from('clients')
@@ -662,19 +772,102 @@ async function handleCreateClient() {
 
     if (error) throw error;
 
-    
+    console.log('CREATE_CLIENT_AFTER_INSERT', data);
+
+    await refreshActiveClients(companyId);
+    await refreshClientAdminList(companyId, showArchivedClients);
+
+    setClientId(data.id);
+    setNewClientName('');
+    setClientAdminMessage('Cliente creado correctamente.');
+    setMessage(`Cliente creado: ${clean}.`);
+  } catch (error) {
+    console.error('CREATE_CLIENT_ERROR', error);
+    setClientAdminMessage(error.message || 'No se pudo crear el cliente.');
+    setMessage(error.message || 'No se pudo crear el cliente.');
+  }
+}
+async function archiveClient(client) {
+  const companyId = session?.companyId || workspace.company?.id;
+
+  if (backendMode !== 'supabase' || !companyId) return;
+
+  const ok = window.confirm(
+    `¿Archivar al cliente "${client.name}"? Seguirás conservando su historial, pero ya no aparecerá en la operación normal.`
+  );
+
+  if (!ok) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .update({
+        is_archived: true,
+        archived_at: new Date().toISOString(),
+      })
+      .eq('id', client.id)
+      .eq('company_id', companyId)
+      .select('id, name, is_archived, archived_at')
+      .single();
+
+    if (error) throw error;
+
+    console.log('ARCHIVE_CLIENT_AFTER_UPDATE', data);
 
     await hydrateWorkspaceFromSupabase({
       id: session.userId,
       email: workspace.user?.email,
     });
 
-    setClientId(data.id);
-    setNewClientName('');
-    setMessage(`Cliente creado: ${clean}.`);
+    await refreshClientAdminList(companyId, showArchivedClients);
+
+    setClientAdminMessage('Cliente archivado correctamente.');
+    setMessage('Cliente archivado correctamente.');
   } catch (error) {
-    console.error('CLIENT_INSERT_ERROR', error);
-    setMessage(error.message || 'No se pudo crear el cliente.');
+    console.error('ARCHIVE_CLIENT_ERROR', error);
+    setClientAdminMessage(error.message || 'No se pudo archivar el cliente.');
+  }
+}
+
+async function restoreClient(client) {
+  const companyId = session?.companyId || workspace.company?.id;
+
+  if (backendMode !== 'supabase' || !companyId) return;
+
+  const ok = window.confirm(
+    `¿Restaurar al cliente "${client.name}"? Volverá a aparecer en la operación normal.`
+  );
+
+  if (!ok) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .update({
+        is_archived: false,
+        archived_at: null,
+      })
+      .eq('id', client.id)
+      .eq('company_id', companyId)
+      .select('id, name, is_archived, archived_at')
+      .single();
+
+    if (error) throw error;
+
+    console.log('RESTORE_CLIENT_AFTER_UPDATE', data);
+
+    await hydrateWorkspaceFromSupabase({
+      id: session.userId,
+      email: workspace.user?.email,
+    });
+
+    await refreshClientAdminList(companyId, showArchivedClients);
+
+    setClientAdminMessage('Cliente restaurado correctamente.');
+    setMessage('Cliente restaurado correctamente.');
+  } catch (error) {
+    console.error('RESTORE_CLIENT_ERROR', error);
+    setClientAdminMessage(error.message || 'No se pudo restaurar el cliente.');
   }
 }
   async function handleSaveAnalysis() {
@@ -706,15 +899,15 @@ async function handleCreateClient() {
         ...prev.analyses,
       ],
     }));
-    setSaveNotice('Guardado correctamente en la nube.');
-setTimeout(() => setSaveNotice(''), 3000);
+    showSaveNotice('Guardado correctamente en la nube.');
+    setMessage('Guardado correctamente.');
     return;
   }
 
   try {
     
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('analyses')
       .insert([record])
       .select()
@@ -722,6 +915,13 @@ setTimeout(() => setSaveNotice(''), 3000);
 
     if (error) throw error;
 
+    await hydrateWorkspaceFromSupabase({
+      id: session.userId,
+      email: workspace.user?.email,
+});
+    showSaveNotice('Guardado correctamente en la nube.');
+    setMessage('Guardado correctamente.');
+    return;
     
 
     await hydrateWorkspaceFromSupabase({
@@ -893,12 +1093,85 @@ setTimeout(() => setSaveNotice(''), 3000);
             <div className="panel-body">
               <div className="saved-actions">
                 <input className="input" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} placeholder="Nuevo cliente" />
-                <button className="btn btn-primary" onClick={handleCreateClient}>Crear</button>
+                <button
+  type="button"
+  className="btn btn-primary"
+  onClick={() => {
+    console.log('CREATE_CLIENT_CLICK');
+    handleCreateClient();
+  }}
+>
+  Crear
+</button>
               </div>
               <div className="client-box">
                 <div className="saved-title">Cliente seleccionado: {selectedClient?.name || 'Sin cliente'}</div>
                 <div className="saved-meta">{selectedClient?.segment || 'Sin segmento'}</div>
               </div>
+              {backendMode === 'supabase' ? (
+  <div className="client-box">
+    <div className="saved-title">Gestión de clientes</div>
+    <div className="saved-meta">Archiva clientes sin perder historial. Los archivados salen de la operación normal.</div>
+
+    <div className="saved-actions" style={{ marginTop: 10 }}>
+      <label
+        className="saved-meta"
+        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+      >
+        <input
+          type="checkbox"
+          checked={showArchivedClients}
+          onChange={(e) => setShowArchivedClients(e.target.checked)}
+        />
+        Mostrar archivados
+      </label>
+    </div>
+
+    {clientAdminMessage ? (
+      <div className="empty-note" style={{ marginTop: 10 }}>
+        {clientAdminMessage}
+      </div>
+    ) : null}
+
+    <div className="list-stack" style={{ marginTop: 10 }}>
+      {clientAdminList.length === 0 ? (
+        <div className="empty-note">No hay clientes para gestionar.</div>
+      ) : (
+        clientAdminList.map((client) => (
+          <div className="saved-item" key={`admin-${client.id}`}>
+            <div>
+              <div className="saved-title">{client.name}</div>
+              <div className="saved-meta">
+                {client.is_archived ? 'Archivado' : 'Activo'}
+                {client.id === clientId ? ' · Seleccionado' : ''}
+              </div>
+            </div>
+
+            <div className="saved-actions">
+              {!client.is_archived ? (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => archiveClient(client)}
+                >
+                  Archivar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => restoreClient(client)}
+                >
+                  Restaurar
+                </button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+) : null}
               <div className="list-stack">
                 {workspace.analyses.length === 0 ? (
                   <div className="empty-note">Todavía no guardas análisis centralizados.</div>
